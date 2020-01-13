@@ -1,7 +1,7 @@
 {
     "name": "Data Dictionary Revisions",
     "namespace": "BCCHR\\DataDictionaryRevisions",
-    "description": "Allows a user to compare any two data dictionary revisions within a project, after it's been moved to production.",
+    "description": "Allows you to compare any two revisions of the data dictionary ONCE the project has been moved to PRODUCTION. The plugin will track fields modified, added, or deleted between revisions.",
     "authors": [
         {
             "name": "Ashley Lee",
