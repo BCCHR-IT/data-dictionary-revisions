@@ -7,6 +7,9 @@ require_once "DataDictionaryRevisions.php";
  */
 require_once APP_PATH_DOCROOT . 'ProjectGeneral/header.php';
 
+/**
+ * Check whether two revisions have been selected
+ */
 if (isset($_POST["dictionaries"]))
 {
     $revision_one = $_POST["dictionaries"][0];
@@ -14,6 +17,11 @@ if (isset($_POST["dictionaries"]))
 }
 
 $data_dictionary_revisions = new \BCCHR\DataDictionaryRevisions\DataDictionaryRevisions();
+
+/**
+ * Retrieve all revisions of the data dictionary
+ */
+$previous_versions = $data_dictionary_revisions->getAllRevisions();
 ?>
 <html>
     <head>
@@ -37,7 +45,12 @@ $data_dictionary_revisions = new \BCCHR\DataDictionaryRevisions\DataDictionaryRe
     </head>
     <body>
         <h4>Data Dictionary Revisions</h4>
-        <?php if (empty($previous_versions)): ?>
+        <?php
+            /**
+             * If there are no revisions of the data dictionary then display a message indicating so, else print a table of all revisions.
+             */
+            if (empty($previous_versions)): 
+        ?>
             <p>There must be at least two revisions of the data dictionary to use this plugin.</p>
         <?php else: ?>
             <p>
@@ -50,7 +63,6 @@ $data_dictionary_revisions = new \BCCHR\DataDictionaryRevisions\DataDictionaryRe
                             <th colspan="4"><b>Project Revision History</b></th>
                         </tr>
                         <?php 
-                            $previous_versions = $data_dictionary_revisions->getAllRevisions();
                             foreach ($previous_versions as $version) { 
                                 print "<tr>";
                                 print "<td style='width: 10px'><input type='checkbox' value='" . $version["id"] . "' name='dictionaries[]'></td>";
@@ -70,7 +82,9 @@ $data_dictionary_revisions = new \BCCHR\DataDictionaryRevisions\DataDictionaryRe
                 </table>
             </form>
             <?php
-            /* Render table of changes */ 
+            /**
+             * If two revisions have been selected, then render table of changes.
+             */ 
             if (isset($revision_one) && isset($revision_two))
             {
                 $key_one = array_search($revision_one, array_column($previous_versions, "id"));
@@ -82,6 +96,9 @@ $data_dictionary_revisions = new \BCCHR\DataDictionaryRevisions\DataDictionaryRe
     </body>
 </html>
 <script>
+    /**
+     * JS to submit the form when two revisions have been selected
+     */
     $('input').on('change', function(evt) {
         if($('input:checked').length >= 2) {
             $('#dictionaries-form').submit();
