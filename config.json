@@ -1,0 +1,27 @@
+{
+    "name": "Data Dictionary Revisions",
+    "namespace": "BCCHR\\DataDictionaryRevisions",
+    "description": "Allows a user to compare any two data dictionary revisions within a project, after it's been moved to production.",
+    "authors": [
+        {
+            "name": "Ashley Lee",
+            "email": "alee2@bcchr.ca",
+            "institution": "BC Children's Hospital Research Institute"
+        }
+    ],
+    "links": {
+        "project": [
+            {
+                "name": "Data Dictionary Revisions",
+                "url": "index.php",
+                "icon": "link"
+            }
+        ]
+    },
+    "compatibility": {
+        "php-version-min": "",
+        "php-version-max": "",
+        "redcap-version-min": "9.1.15",
+        "redcap-version-max": ""
+    }
+}
