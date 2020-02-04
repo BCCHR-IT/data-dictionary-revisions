@@ -1,5 +1,5 @@
 # Data Dictionary Revisions
-Allows you to compare any two revisions of the data dictionary **AFTER** the project has been moved to **PRODUCTION**. The external module will track fields modified, added, or deleted between revisions. The plugin has been enabled on all REDCap projects.
+Allows you to compare any two revisions of the data dictionary **AFTER** the project has been moved to **PRODUCTION**. The external module will track fields modified, added, or deleted between revisions.
 
 ## Comparing Two Data Dictionary Revisions
 
