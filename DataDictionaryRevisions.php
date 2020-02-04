@@ -2,9 +2,17 @@
 
 namespace BCCHR\DataDictionaryRevisions;
 
+require "vendor/autoload.php";
+
 use REDCap;
 use Project;
 use MetaData;
+
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\RichText\RichText;
+use PhpOffice\PhpSpreadsheet\Style\Color;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
 
@@ -56,7 +64,7 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
             return !in_array($field_name, $current_fields);
         }, ARRAY_FILTER_USE_KEY);
         $metadata_changes = array_merge($metadata_changes, $deleted_fields);
-        
+    
         return $metadata_changes;
     }
     
@@ -151,6 +159,118 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
     }
 
     /**
+     * Creates an Excel worksheet of the Table of Changes and outputs to the browse for downloading.
+     * 
+     * @param String $revision_one  A revision id of one of the previous data dictionaries(y). Assume that $revision_one always contains id of dictionary that comes after $revision_two
+     * @param String $revision_two  A revision id of one of the previous/current data dictionaries(y).
+     * @since 2.0
+     */
+    public function getDownload($revision_one, $revision_two)
+    {
+        if ($revision_one == "current")
+        {
+            $this->latest_metadata = REDCap::getDataDictionary("array");
+            $this->furthest_metadata = MetaData::getDataDictionary("array", true, array(), array(), false, false, $revision_two);
+        }
+        else
+        {
+            $this->latest_metadata = MetaData::getDataDictionary("array", true, array(), array(), false, false, $revision_one);
+            $this->furthest_metadata = MetaData::getDataDictionary("array", true, array(), array(), false, false, $revision_two);
+        }
+
+        $this->metadata_changes = $this->getMetadataChanges();
+        
+        if (sizeof($this->metadata_changes) > 0)
+        {
+            $headers = array_keys(current($this->latest_metadata));
+            $filename = "comparision_of_changes.xlsx";
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle("Details");
+            $columns = array("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R");
+            $details = $this->getDetails();
+        
+            $sheet->getStyle("A1:E1")->getFont()->setBold(true);
+            $sheet->setCellValue("A1", "Fields added");
+            $sheet->setCellValue("A2", $details["num_fields_added"]);
+            $sheet->setCellValue("B1", "Fields deleted");
+            $sheet->setCellValue("B2", $details["num_fields_deleted"]);
+            $sheet->setCellValue("C1", "Fields modified");
+            $sheet->setCellValue("C2", $details["num_fields_modified"]);
+            $sheet->setCellValue("D1", "Total fields BEFORE changes");
+            $sheet->setCellValue("D2", $details["total_fields_before"]);
+            $sheet->setCellValue("E1", "Total fields AFTER changes");
+            $sheet->setCellValue("E2", $details["total_fields_after"]);
+
+            $spreadsheet->createSheet();
+            $sheet = $spreadsheet->getSheet(1);
+            $sheet->setTitle("Table of Changes");
+            $curr_row = 2;
+
+            foreach($headers as $i => $header)
+            {
+                $sheet->getStyle($columns[$i] . "1")->getFont()->setBold(true);
+                $sheet->setCellValue($columns[$i] . "1", $header);
+            }
+
+            foreach($this->metadata_changes as $field => $metadata) 
+            {
+                $metadata = array_values($metadata);
+                if (is_null($this->furthest_metadata[$field]))
+                {
+                    $sheet->getStyle("A$curr_row:R$curr_row")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB("7BED7B");
+                }
+                else if (is_null($this->latest_metadata[$field]))
+                {
+                    $sheet->getStyle("A$curr_row:R$curr_row")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB("FE5A5A");
+                }
+
+                $metadata = array_values($metadata);
+                foreach($metadata as $i => $attr)
+                {
+                    $attr = strip_tags($attr);
+                    if (is_null($this->furthest_metadata[$field]) || is_null($this->latest_metadata[$field]))
+                    { 
+                        $value = $attr ? $attr : "n/a";
+                        $sheet->setCellValue($columns[$i] . $curr_row, $value);
+                    }
+                    else
+                    {
+                        $old_value = strip_tags($this->furthest_metadata[$field][$headers[$i]]);
+                        if ($attr != $old_value)
+                        {
+                            $value = $attr ? $attr : "n/a";
+                            $old_value = $old_value ? $old_value : "(no value)";
+
+                            $sheet->getStyle($columns[$i] . $curr_row)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB("FFFF80");
+
+                            $richText = new RichText();
+                            $richText->createText($value . "\n");
+                            $old = $richText->createTextRun($old_value);
+                            $old->getFont()->setColor(new Color("AAAAAA"));
+
+                            $sheet->setCellValue($columns[$i] . $curr_row, $richText);
+                        }
+                        else
+                        {
+                            $value = $attr ? $attr : "n/a";
+                            $sheet->setCellValue($columns[$i] . $curr_row, $value);
+                        }
+                    }
+                }
+                $curr_row++; 
+            }
+
+            header('Content-Description: File Transfer');
+            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+            $writer = new Xlsx($spreadsheet);
+            $writer->save('php://output');
+        }
+    }
+
+    /**
      * Renders details, and table of differences between two versions of the data dictionary/metadata.
      * 
      * @param String $revision_one  A revision id of one of the previous data dictionaries(y). Assume that $revision_one always contains id of dictionary that comes after $revision_two
@@ -224,61 +344,65 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
             </div>
         </div>
         <div>
-            <h4>Table of Changes</h4>
             <?php if (empty($this->metadata_changes)) :?>
+                <h4>Table of Changes</h4>
                 <p>The data dictionaries are identical</p>
             <?php else: ?>
-            <table>
-                <thead>
-                    <tr>
-                        <?php foreach($headers as $header) { print "<th><b>$header</b></th>"; } ?>
-                    </tr>
-                </thead>
-                <?php 
-                    foreach($this->metadata_changes as $field => $metadata) {
-                        $html = "";
-                        if (is_null($this->furthest_metadata[$field]))
-                        {
-                            $html .= "<tr style='background-color:#7BED7B'>";
-                            foreach($metadata as $key => $attr)
+                <form action="<?php print $this->getUrl("DownloadTable.php"); ?>" method="post">
+                <h4>Table of Changes <button class="btn btn-link" type="submit">Download</button></h4>
+                <input name="revision_one" type="hidden" value="<?php print $revision_one;?>"></input><input name="revision_two" type="hidden" value="<?php print $revision_two;?>"></input>
+                </form>
+                <table>
+                    <thead>
+                        <tr>
+                            <?php foreach($headers as $header) { print "<th><b>$header</b></th>"; } ?>
+                        </tr>
+                    </thead>
+                    <?php 
+                        foreach($this->metadata_changes as $field => $metadata) {
+                            $html = "";
+
+                            if (is_null($this->furthest_metadata[$field]))
                             {
-                                $attr = strip_tags($attr);
-                                $html .= "<td>" . ($attr ? $attr : "n/a") . "</td>";
+                                $html .= "<tr style='background-color:#7BED7B'>";
                             }
-                        }
-                        else if (is_null($this->latest_metadata[$field]))
-                        {
-                            $html .= "<tr style='background-color:#FE5A5A'>";
-                            foreach($metadata as $key => $attr)
+                            else if (is_null($this->latest_metadata[$field]))
                             {
-                                $attr = strip_tags($attr);
-                                $html .= "<td>" . ($attr ? $attr : "n/a") . "</td>";
+                                $html .= "<tr style='background-color:#FE5A5A'>";
                             }
-                        }
-                        else
-                        {
-                            $html ="<tr>";
+                            else
+                            {
+                                $html ="<tr>";
+                            }
+
                             foreach($metadata as $key => $attr)
                             {
                                 $attr = strip_tags($attr);
-                                $old_value = strip_tags($this->furthest_metadata[$field][$key]);
-                                if ($attr != $old_value)
-                                {
-                                    $html .= "<td style='background-color:#FFFF80'><p>" . ($attr ? $attr : "(no value)") . "</p><p style='color:#aaa'>" . ($old_value ? $old_value : "(no value)"). "<p></td>";
+                                if (is_null($this->furthest_metadata[$field]) || is_null($this->latest_metadata[$field]))
+                                { 
+                                    $html .= "<td>" . ($attr ? $attr : "n/a") . "</td>";
                                 }
                                 else
                                 {
-                                    $html .= "<td>" . ($attr ? $attr : "n/a") . "</td>";
+                                    $old_value = strip_tags($this->furthest_metadata[$field][$key]);
+                                    if ($attr != $old_value)
+                                    {
+                                        $html .= "<td style='background-color:#FFFF80'><p>" . ($attr ? $attr : "(no value)") . "</p><p style='color:#aaa'>" . ($old_value ? $old_value : "(no value)"). "<p></td>";
+                                    }
+                                    else
+                                    {
+                                        $html .= "<td name='row[]'>" . ($attr ? $attr : "n/a") . "</td>";
+                                    }
                                 }
                             }
+
+                            $html .= "</tr>";
+                            print $html;
                         }
-                        $html .= "</tr>";
-                        print $html;
-                    }
-                ?>
-            </table>
+                    ?>
+                </table>
+            <?php endif?>
         </div>
-        <?php endif?>
         <?php
     }
 

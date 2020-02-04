@@ -41,6 +41,10 @@ $previous_versions = $data_dictionary_revisions->getAllRevisions();
             th {
                 background-color: lightgrey;
             }
+
+            #revision-history-header:hover {
+                background-color: grey;
+            }
         </style>
     </head>
     <body>
@@ -59,9 +63,10 @@ $previous_versions = $data_dictionary_revisions->getAllRevisions();
             <p><b>Select two data dictionary revisions to compare:</b></p>
             <form action="" method="post" id="dictionaries-form">
                 <table style="margin-bottom:20px">
-                        <tr>
-                            <th colspan="4"><b>Project Revision History</b></th>
-                        </tr>
+                        <thead>
+                            <th colspan="4" id="revision-history-header"><b>Project Revision History</b> <span class="fas fa-caret-up" style=""></span><span class="fas fa-caret-down" style="display:none"></span></th>
+                        </thead>
+                        <tbody class="collapsible">
                         <?php 
                             foreach ($previous_versions as $version) { 
                                 print "<tr>";
@@ -77,8 +82,9 @@ $previous_versions = $data_dictionary_revisions->getAllRevisions();
                                     print "<td><p style='margin:0px'>Requested by <b>" . $version["requester"] . "</b></p><p style='margin:0px'>Approved by <b>" . $version["approver"] . "</b></p></td>";
                                 }
                                 print "</tr>";
-                            } 
+                            }
                         ?>
+                        </tbody>
                 </table>
             </form>
             <?php
@@ -103,6 +109,12 @@ $previous_versions = $data_dictionary_revisions->getAllRevisions();
         if($('input:checked').length >= 2) {
             $('#dictionaries-form').submit();
         }
+    });
+
+    $('#revision-history-header').click(function() {
+        $('.fa-caret-down').toggle();
+        $('.fa-caret-up').toggle();
+        $('.collapsible').toggle();
     });
 </script>
 <?php
