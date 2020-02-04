@@ -19,9 +19,9 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
     /**
      * Class variables
      * 
-     * @var Array $latest_metadata      The data dictionary of the older revision
-     * @var Array $furthest_metadata    The data dictionary of the newer revision
-     * @var Array $metadata_changes     Differences between $latest_metadata and $furthest_metadata
+     * @var Array $latest_metadata      The data dictionary of the newer revision
+     * @var Array $furthest_metadata    The data dictionary of the older revision
+     * @var Array $metadata_changes     Differences between $latest_metadata and $furthest_metadata that include fields deleted, added, and modified
      * @var Array $ui_ids               User ids that have previously been identified within getUsernameFirstLast()
      */
     private $latest_metadata;
@@ -40,21 +40,33 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
     }
 
     /**
-     * Parses differences between current data dictionary and previous version.
+     * Sets class variables, except for $ui_ids.
      * 
-     * @since 1.0
-     * @return Array An array of fields that have been added, deleted, or modified between the two data dictinoaries.
+     * @param String $revision_one  A revision id of one of the previous data dictionaries(y). Assume that $revision_one always contains id of dictionary that comes after $revision_two
+     * @param String $revision_two  A revision id of one of the previous/current data dictionaries(y).
+     * @since 2.0
      */
-    private function getMetadataChanges()
+    private function setMetadataVariables($revision_one, $revision_two)
     {   
-        $metadata_changes = array();
+        if ($revision_one == "current")
+        {
+            $this->latest_metadata = REDCap::getDataDictionary("array");
+            $this->furthest_metadata = MetaData::getDataDictionary("array", true, array(), array(), false, false, $revision_two);
+        }
+        else
+        {
+            $this->latest_metadata = MetaData::getDataDictionary("array", true, array(), array(), false, false, $revision_one);
+            $this->furthest_metadata = MetaData::getDataDictionary("array", true, array(), array(), false, false, $revision_two);
+        }
+
+        $this->metadata_changes = array();
 
         // Check new and modified fields.
         foreach($this->latest_metadata as $field => $metadata)
         {
             // Check to see if values are different from existing field. If they are, don't include in new array.
             if (!isset($this->furthest_metadata[$field]) || $metadata !== $this->furthest_metadata[$field]) {
-                $metadata_changes[$field] = $metadata;
+                $this->metadata_changes[$field] = $metadata;
             }
         }
 
@@ -63,9 +75,8 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
         $deleted_fields = array_filter($this->furthest_metadata, function($field_name) use($current_fields) {
             return !in_array($field_name, $current_fields);
         }, ARRAY_FILTER_USE_KEY);
-        $metadata_changes = array_merge($metadata_changes, $deleted_fields);
-    
-        return $metadata_changes;
+
+        $this->metadata_changes = array_merge($this->metadata_changes, $deleted_fields);
     }
     
     /**
@@ -159,7 +170,7 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
     }
 
     /**
-     * Creates an Excel worksheet of the Table of Changes and outputs to the browse for downloading.
+     * Creates Excel worksheets of the details regarding changes between versions, & Table of Changes, then outputs them to the browse for downloading.
      * 
      * @param String $revision_one  A revision id of one of the previous data dictionaries(y). Assume that $revision_one always contains id of dictionary that comes after $revision_two
      * @param String $revision_two  A revision id of one of the previous/current data dictionaries(y).
@@ -167,29 +178,19 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
      */
     public function getDownload($revision_one, $revision_two)
     {
-        if ($revision_one == "current")
-        {
-            $this->latest_metadata = REDCap::getDataDictionary("array");
-            $this->furthest_metadata = MetaData::getDataDictionary("array", true, array(), array(), false, false, $revision_two);
-        }
-        else
-        {
-            $this->latest_metadata = MetaData::getDataDictionary("array", true, array(), array(), false, false, $revision_one);
-            $this->furthest_metadata = MetaData::getDataDictionary("array", true, array(), array(), false, false, $revision_two);
-        }
-
-        $this->metadata_changes = $this->getMetadataChanges();
-        
+        $this->setMetadataVariables($revision_one, $revision_two);
         if (sizeof($this->metadata_changes) > 0)
         {
             $headers = array_keys(current($this->latest_metadata));
-            $filename = "comparision_of_changes.xlsx";
+            $filename = "comparison_of_changes.xlsx";
+            $columns = array("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R");
+
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
+            
+            // Create & write to Details worksheet
             $sheet->setTitle("Details");
-            $columns = array("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R");
             $details = $this->getDetails();
-        
             $sheet->getStyle("A1:E1")->getFont()->setBold(true);
             $sheet->setCellValue("A1", "Fields added");
             $sheet->setCellValue("A2", $details["num_fields_added"]);
@@ -202,6 +203,7 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
             $sheet->setCellValue("E1", "Total fields AFTER changes");
             $sheet->setCellValue("E2", $details["total_fields_after"]);
 
+            // Create & write to Table of Changes worksheet
             $spreadsheet->createSheet();
             $sheet = $spreadsheet->getSheet(1);
             $sheet->setTitle("Table of Changes");
@@ -275,23 +277,11 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
      * 
      * @param String $revision_one  A revision id of one of the previous data dictionaries(y). Assume that $revision_one always contains id of dictionary that comes after $revision_two
      * @param String $revision_two  A revision id of one of the previous/current data dictionaries(y).
-     * @since 1.0
+     * @since 2.0
      */
     public function renderChangesTable($revision_one, $revision_two)
     {
-        if ($revision_one == "current")
-        {
-            $this->latest_metadata = REDCap::getDataDictionary("array");
-            $this->furthest_metadata = MetaData::getDataDictionary("array", true, array(), array(), false, false, $revision_two);
-        }
-        else
-        {
-            $this->latest_metadata = MetaData::getDataDictionary("array", true, array(), array(), false, false, $revision_one);
-            $this->furthest_metadata = MetaData::getDataDictionary("array", true, array(), array(), false, false, $revision_two);
-        }
-
-        $this->metadata_changes = $this->getMetadataChanges();
-
+        $this->setMetadataVariables($revision_one, $revision_two);
         $details = $this->getDetails();
         $headers = array_keys(current($this->latest_metadata));
         ?>

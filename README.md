@@ -10,3 +10,5 @@ Allows you to compare any two revisions of the data dictionary **AFTER** the pro
 2. On the page, select two data dictionary revisions from the table.
 
 3. Look at the Table of Changes for information about what fields have been modified, deleted, or added.
+
+4. The User may download an Excel file that exports the Table of Changes, and a summary of details about the changes between version.
