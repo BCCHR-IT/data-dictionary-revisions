@@ -339,7 +339,7 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
                 <p>The data dictionaries are identical</p>
             <?php else: ?>
                 <form action="<?php print $this->getUrl("DownloadTable.php"); ?>" method="post">
-                <h4>Table of Changes <button class="btn btn-link" type="submit">Download</button></h4>
+                <h4>Table of Changes <?php if (version_compare(PHP_VERSION, "7.1.0", ">=")): ?><button class="btn btn-link" type="submit">Download</button><?php endif;?></h4>
                 <input name="revision_one" type="hidden" value="<?php print $revision_one;?>"></input><input name="revision_two" type="hidden" value="<?php print $revision_two;?>"></input>
                 </form>
                 <table>
