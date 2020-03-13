@@ -466,6 +466,7 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
             }
 
             $result->close();
+            
             // Sort by most recent version.
             $previous_versions = array_reverse($previous_versions);
         }
@@ -485,16 +486,35 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
             $last_key = $key;
         }
 
-        // Get correct production timestamp
+        // Get correct production timestamp,
+        // and the person who moved it to production
         if (!empty($previous_versions))
         {
+            // Get correct production timestamp
             $sql = "select production_time from redcap_projects where project_id = $pid";
             if ($result = $this->query($sql))
             {
                 while ($row = $result->fetch_object()){
-                    $previous_versions[sizeof($previous_versions)-1]["ts_approved"] = $row->production_time;
+                    $timestamp = $row->production_time;
+                    $previous_versions[sizeof($previous_versions)-1]["ts_approved"] = $timestamp;
                 }
                 $result->close();
+            }
+
+            if (!empty($timestamp))
+            {
+                // Retrieve person who moved to production, as it's stored separately. 
+                $sql = "select u.ui_id from redcap_user_information u, redcap_log_event l
+                where u.username = l.user and l.description = 'Move project to production status' and l.project_id = $pid 
+                and l.ts = '" . str_replace(array(' ',':','-'), array('','',''), $timestamp) . "' order by log_event_id desc limit 1";
+
+                if ($result = $this->query($sql))
+                {
+                    while ($row = $result->fetch_object()){
+                        $previous_versions[sizeof($previous_versions)-1]["approver"] = $this->getUsernameFirstLast($row->ui_id);
+                    }
+                    $result->close();
+                }
             }
         }
 

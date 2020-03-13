@@ -68,12 +68,16 @@ $previous_versions = $data_dictionary_revisions->getAllRevisions();
                         </thead>
                         <tbody class="collapsible">
                         <?php 
-                            foreach ($previous_versions as $version) { 
+                            foreach ($previous_versions as $index => $version) { 
                                 print "<tr>";
                                 print "<td style='width: 10px'><input type='checkbox' value='" . $version["id"] . "' name='dictionaries[]'></td>";
                                 print "<td>" . $version["label"] . "</td>";
                                 print "<td>" . $version["ts_approved"] . "</td>";
-                                if ($version["automatic_approval"] === "1")
+                                if ($index == sizeof($previous_versions) - 1)
+                                {
+                                    print "<td><p style='margin:0px'>Moved to production by <b>" . $version["approver"] . "</b></p></td>";
+                                }
+                                else if ($version["automatic_approval"] === "1")
                                 {
                                     print "<td><p style='margin:0px'>Requested by <b>" . $version["requester"] . "</b></p><p style='margin:0px'>Approved automatically</b></p></td>";
                                 }
