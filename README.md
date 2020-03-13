@@ -11,4 +11,4 @@ Allows you to compare any two revisions of the data dictionary **AFTER** the pro
 
 3. Look at the Table of Changes for information about what fields have been modified, deleted, or added.
 
-4. The User may download an Excel file that exports the Table of Changes, and a summary of details about the changes between version.
+4. The User may download an Excel file that exports the Table of Changes, and a summary of details about the changes between version. You must have at least PHP 7.1 to do this. The module will hide the download link if PHP 7.0 is present. This is because BCCHR had multiple instances of REDCap across different PHP versions.
