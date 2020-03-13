@@ -470,13 +470,17 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
             $previous_versions = array_reverse($previous_versions);
         }
 
-        // Shift timestamps down by one, as the correct timestamps for each one is when the previous version was archived. 
+        // Shift timestamps, approvers, requesters, and automatic approval down by one,
+        // as the correct info for each one is when the previous version was archived. 
         $last_key = null;
         foreach($previous_versions as $key => $version)
         {
             if ($last_key !== null)
             {
                 $previous_versions[$last_key]["ts_approved"] = $previous_versions[$key]["ts_approved"];
+                $previous_versions[$last_key]["requester"] = $previous_versions[$key]["requester"];
+                $previous_versions[$last_key]["approver"] = $previous_versions[$key]["approver"];
+                $previous_versions[$last_key]["automatic_approval"] = $previous_versions[$key]["automatic_approval"];
             }
             $last_key = $key;
         }
