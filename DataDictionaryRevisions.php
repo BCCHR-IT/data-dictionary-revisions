@@ -2,8 +2,6 @@
 
 namespace BCCHR\DataDictionaryRevisions;
 
-require "vendor/autoload.php";
-
 use REDCap;
 use Project;
 use MetaData;
@@ -170,11 +168,11 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
     }
 
     /**
-     * Creates Excel worksheets of the details regarding changes between versions, & Table of Changes, then outputs them to the browse for downloading.
+     * Creates CSV of the details regarding Table of Changes, then outputs it to the browser for downloading.
      * 
      * @param String $revision_one  A revision id of one of the previous data dictionaries(y). Assume that $revision_one always contains id of dictionary that comes after $revision_two
      * @param String $revision_two  A revision id of one of the previous/current data dictionaries(y).
-     * @since 2.0
+     * @since 3.0
      */
     public function getDownload($revision_one, $revision_two)
     {
@@ -182,93 +180,86 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
         if (sizeof($this->metadata_changes) > 0)
         {
             $headers = array_keys(current($this->latest_metadata));
-            $filename = "comparison_of_changes.xlsx";
-            $columns = array("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R");
-
-            $spreadsheet = new Spreadsheet();
-            $sheet = $spreadsheet->getActiveSheet();
+            $headers[] = "change_status";
+            $headers[] = "changed_fields";
+            $headers[] = "change_details (field: old values)";
             
-            // Create & write to Details worksheet
-            $sheet->setTitle("Details");
-            $details = $this->getDetails();
-            $sheet->getStyle("A1:E1")->getFont()->setBold(true);
-            $sheet->setCellValue("A1", "Fields added");
-            $sheet->setCellValue("A2", $details["num_fields_added"]);
-            $sheet->setCellValue("B1", "Fields deleted");
-            $sheet->setCellValue("B2", $details["num_fields_deleted"]);
-            $sheet->setCellValue("C1", "Fields modified");
-            $sheet->setCellValue("C2", $details["num_fields_modified"]);
-            $sheet->setCellValue("D1", "Total fields BEFORE changes");
-            $sheet->setCellValue("D2", $details["total_fields_before"]);
-            $sheet->setCellValue("E1", "Total fields AFTER changes");
-            $sheet->setCellValue("E2", $details["total_fields_after"]);
+            $filename = "comparison_of_changes.csv";
 
-            // Create & write to Table of Changes worksheet
-            $spreadsheet->createSheet();
-            $sheet = $spreadsheet->getSheet(1);
-            $sheet->setTitle("Table of Changes");
-            $curr_row = 2;
+            header('Content-Description: File Transfer');
+            header('Content-Type: application/csv');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
 
-            foreach($headers as $i => $header)
+            $file = fopen("php://output", "w");
+
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF)); // Use UTF-8 encoding
+
+            // Write headers to file
+            if (fputcsv($file, $headers) == "FALSE")
             {
-                $sheet->getStyle($columns[$i] . "1")->getFont()->setBold(true);
-                $sheet->setCellValue($columns[$i] . "1", $header);
+                REDCap::logEvent("Data Dictionary Revisions External Module - Error", "Error writing headers to $filename.", null, null, null, $this->getProjectId());
             }
 
             foreach($this->metadata_changes as $field => $metadata) 
             {
                 $metadata = array_values($metadata);
-                if (is_null($this->furthest_metadata[$field]))
-                {
-                    $sheet->getStyle("A$curr_row:R$curr_row")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB("7BED7B");
-                }
-                else if (is_null($this->latest_metadata[$field]))
-                {
-                    $sheet->getStyle("A$curr_row:R$curr_row")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB("FE5A5A");
-                }
+                $csv_row = array();
+                $changed_fields = "";
+                $change_details = "";
 
-                $metadata = array_values($metadata);
                 foreach($metadata as $i => $attr)
                 {
                     $attr = strip_tags($attr);
-                    if (is_null($this->furthest_metadata[$field]) || is_null($this->latest_metadata[$field]))
+                    if (is_null($this->furthest_metadata[$field]) || is_null($this->latest_metadata[$field])) // field value is missing
                     { 
-                        $value = $attr ? $attr : "n/a";
-                        $sheet->setCellValue($columns[$i] . $curr_row, $value);
+                        $value = $attr ? $attr : "";
+                        $csv_row[] = $value;
                     }
                     else
                     {
                         $old_value = strip_tags($this->furthest_metadata[$field][$headers[$i]]);
                         if ($attr != $old_value)
                         {
-                            $value = $attr ? $attr : "n/a";
-                            $old_value = $old_value ? $old_value : "(no value)";
-
-                            $sheet->getStyle($columns[$i] . $curr_row)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB("FFFF80");
-
-                            $richText = new RichText();
-                            $richText->createText($value . "\n");
-                            $old = $richText->createTextRun($old_value);
-                            $old->getFont()->setColor(new Color("AAAAAA"));
-
-                            $sheet->setCellValue($columns[$i] . $curr_row, $richText);
+                            $value = $attr ? $attr : "";
+                            $old_value = $old_value ? $old_value : "";
+                            $csv_row[] = $value;
+                            $changed_fields .= $headers[$i] . "\r\n";
+                            $change_details .= $headers[$i] . ": " . $old_value . "\r\n";
                         }
                         else
                         {
-                            $value = $attr ? $attr : "n/a";
-                            $sheet->setCellValue($columns[$i] . $curr_row, $value);
+                            $value = $attr ? $attr : "";
+                            $csv_row[] = $value;
                         }
                     }
                 }
-                $curr_row++; 
+
+                if (is_null($this->furthest_metadata[$field])) // New Field
+                {
+                    $csv_row[] = "New field";
+                }
+                else if (is_null($this->latest_metadata[$field])) // Deleted Field
+                {
+                    $csv_row[] = "Deleted field";
+                }
+                else
+                {
+                    $csv_row[] = "Field with changes";
+                }
+
+                $csv_row[] = $changed_fields;
+                $csv_row[] = $change_details;
+
+                if (fputcsv($file, $csv_row) == FALSE)
+                {
+                    REDCap::logEvent("Data Dictionary Revisions External Module - Error", "Error writing changes to $filename.", null, null, null, $this->getProjectId());
+                }
             }
 
-            header('Content-Description: File Transfer');
-            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-            header('Content-Disposition: attachment; filename="' . $filename . '"');
-
-            $writer = new Xlsx($spreadsheet);
-            $writer->save('php://output');
+            if (fclose($file) === FALSE)
+            {
+                REDCap::logEvent("Data Dictionary Revisions External Module - Error", "Error closing $filename.", null, null, null, $this->getProjectId());
+            }
         }
     }
 
@@ -339,7 +330,7 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
                 <p>The data dictionaries are identical</p>
             <?php else: ?>
                 <form action="<?php print $this->getUrl("DownloadTable.php"); ?>" method="post">
-                <h4>Table of Changes <?php if (version_compare(PHP_VERSION, "7.1.0", ">=")): ?><button class="btn btn-link" type="submit">Download</button><?php endif;?></h4>
+                <h4>Table of Changes <button class="btn btn-link" type="submit">Download</button></h4>
                 <input name="revision_one" type="hidden" value="<?php print $revision_one;?>"></input><input name="revision_two" type="hidden" value="<?php print $revision_two;?>"></input>
                 </form>
                 <table>
@@ -352,11 +343,11 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
                         foreach($this->metadata_changes as $field => $metadata) {
                             $html = "";
 
-                            if (is_null($this->furthest_metadata[$field]))
+                            if (is_null($this->furthest_metadata[$field])) // New field
                             {
                                 $html .= "<tr style='background-color:#7BED7B'>";
                             }
-                            else if (is_null($this->latest_metadata[$field]))
+                            else if (is_null($this->latest_metadata[$field])) // Deleted field
                             {
                                 $html .= "<tr style='background-color:#FE5A5A'>";
                             }
@@ -372,7 +363,7 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
                                 { 
                                     $html .= "<td>" . ($attr ? $attr : "n/a") . "</td>";
                                 }
-                                else
+                                else // Modified field
                                 {
                                     $old_value = strip_tags($this->furthest_metadata[$field][$key]);
                                     if ($attr != $old_value)
