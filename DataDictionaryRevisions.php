@@ -330,7 +330,7 @@ class DataDictionaryRevisions extends \ExternalModules\AbstractExternalModule {
                 <p>The data dictionaries are identical</p>
             <?php else: ?>
                 <form action="<?php print $this->getUrl("DownloadTable.php"); ?>" method="post">
-                <h4>Table of Changes <button class="btn btn-link" type="submit">Download</button></h4>
+                <h4>Table of Changes <button class="btn btn-link" type="submit" data-toggle="tooltip" title="There are two new columns in the CSV: changed_fields (which contains a short list of all changes made in a field), and change_details (which stores the old values for the field, while new values are contained in the associated column). These columns may be hard to see when using Excel. If so, please wrap your text.">Download</button></h4>
                 <input name="revision_one" type="hidden" value="<?php print $revision_one;?>"></input><input name="revision_two" type="hidden" value="<?php print $revision_two;?>"></input>
                 </form>
                 <table>
